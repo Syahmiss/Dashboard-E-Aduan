@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Aduan - Retro Terminal v1.0</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font VT323 & Share Tech Mono dari Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        /* Gaya Khas Retro Terminal & Kesan CRT */
+        body {
+            background-color: #050505;
+            color: #00ff66;
+            font-family: 'Share Tech Mono', monospace;
+            overflow-x: hidden;
+        }
+
+        /* Scanlines CRT */
+        .crt::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 50;
+            background-size: 100% 3px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Flicker monitor CRT */
+        .crt::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: rgba(18, 16, 16, 0.08);
+            opacity: 0;
+            z-index: 50;
+            pointer-events: none;
+            animation: flicker 0.15s infinite;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.27861; }
+            5% { opacity: 0.34769; }
+            10% { opacity: 0.23604; }
+            15% { opacity: 0.90626; }
+            20% { opacity: 0.18128; }
+            25% { opacity: 0.83891; }
+            30% { opacity: 0.65583; }
+            35% { opacity: 0.67807; }
+            40% { opacity: 0.26559; }
+            45% { opacity: 0.84693; }
+            50% { opacity: 0.96019; }
+            55% { opacity: 0.08594; }
+            60% { opacity: 0.20313; }
+            65% { opacity: 0.71988; }
+            70% { opacity: 0.53455; }
+            75% { opacity: 0.37288; }
+            80% { opacity: 0.71428; }
+            85% { opacity: 0.70419; }
+            90% { opacity: 0.7003; }
+            95% { opacity: 0.36108; }
+            100% { opacity: 0.24387; }
+        }
+
+        /* Text Glow Effect */
+        .glow-text {
+            text-shadow: 0 0 5px #00ff66, 0 0 10px #00ff66;
+        }
+
+        .glow-border {
+            box-shadow: 0 0 10px #00ff66, inset 0 0 5px #00ff66;
+        }
+
+        /* Blink Cursor */
+        .blink {
+            animation: blinker 1s cubic-bezier(0.5, 0, 1, 1) infinite;
+        }
+
+        @keyframes blinker {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        /* Custom Input Styling */
+        input, select, textarea {
+            background-color: #0a150a !important;
+            color: #00ff66 !important;
+            border: 1px solid #00ff66 !important;
+            outline: none !important;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            box-shadow: 0 0 8px #00ff66;
+            background-color: #0d200d !important;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #020b02;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #00ff66;
+        }
+    </style>
+</head>
+<body class="crt min-h-screen p-4 md:p-8 flex flex-col justify-between">
+
+    <!-- Terminal Header Container -->
+    <div class="max-w-4xl mx-auto w-full">
+        <header class="border-2 border-#00ff66 p-4 mb-6 glow-border bg-black bg-opacity-80 rounded-sm">
+            <div class="flex flex-col md:flex-row justify-between items-center border-b border-#00ff66 pb-2 mb-3">
+                <div class="flex items-center space-x-2">
+                    <!-- Admin Login Trigger Button -->
+                    <button type="button" onclick="openAdminAuthModal()" class="bg-green-950 hover:bg-green-800 text-green-300 text-xs px-2.5 py-1 border border-green-500 rounded-sm font-mono flex items-center gap-1 transition-all">
+                        <span>[🔑 ADMIN]</span>
+                    </button>
+                    <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-ping"></span>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-widest glow-text">SYS_ADUAN_v1.0.48</h1>
+                </div>
+                <div class="text-xs md:text-sm text-green-400 mt-2 md:mt-0" id="live-clock">
+                    STATION: MY-KL-01 | TIME: --:--:--
+                </div>
+            </div>
+            <div class="text-xs md:text-sm text-green-300">
+                <p>> SISTEM APLIKASI ADUAN RASMI [TERMINAL UTAMA]</p>
+                <p>> SILA MASUKKAN MAKLUMAT LENGKAP UNTUK PROSES TIKET ADUAN.</p>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="border-2 border-#00ff66 p-4 md:p-6 bg-black bg-opacity-90 glow-border rounded-sm relative">
+
+            <!-- AppScript Web App URL Configuration -->
+            <div class="mb-4 p-3 border border-dashed border-green-700 bg-green-950 bg-opacity-30 rounded-sm">
+                <label for="appscriptUrl" class="block text-xs mb-1 text-green-400 uppercase tracking-wider">
+                    > GOOGLE APPS SCRIPT WEB APP URL (MACRO URL)
+                </label>
+                <input type="url" id="appscriptUrl" 
+                       class="w-full p-2 text-xs rounded-sm border border-green-600 bg-black text-green-300" 
+                       placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                       value="https://script.google.com/macros/s/AKfycbzdXVrcYbmsJ2JcwL7UGTUMciowme8RgGFVf9xlyr6HU3zh-yxFL6oBypHZQdkYEUeA/exec">
+                <p class="text-[10px] text-green-500 mt-1">*Masukkan URL Web App Google Apps Script anda di sini untuk menyambung ke Google Sheet dan penghantaran emel PDF.</p>
+            </div>
+
+            <!-- Published CSV Data Stream URL for Live Admin Sync -->
+            <input type="hidden" id="csvDataUrl" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vT38sKbl3Io4-wpT6CmO0IbCAupMgwy0fmxn5U7DpmkJOe-jXxOfbo9CJ3vbAdYjRzB_dEGBZ1C0jVx/pub?gid=1187461359&single=true&output=csv">
+
+            <!-- FORM SECTIONS -->
+            <form id="aduanForm" onsubmit="event.preventDefault(); showPreview();" class="space-y-5">
+                
+                <div class="border-b border-green-800 pb-2">
+                    <h2 class="text-lg font-bold glow-text flex items-center">
+                        <span class="mr-2">[1]</span> MAKLUMAT PENGADU
+                    </h2>
+                </div>
+
+                <!-- Input Nama -->
+                <div>
+                    <label for="nama" class="block text-sm mb-1 uppercase tracking-wider">
+                        > NAMA LENGKAP <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="nama" required 
+                           class="w-full p-2.5 rounded-sm transition-all" 
+                           placeholder="Contoh: AHMAD BIN ABDULLAH">
+                </div>
+
+                <!-- Grid untuk No Tel & Email -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Input No Telefon -->
+                    <div>
+                        <label for="noTel" class="block text-sm mb-1 uppercase tracking-wider">
+                            > NO TELEFON <span class="text-red-500">*</span>
+                        </label>
+                        <input type="tel" id="noTel" required pattern="[0-9\-+ ]+" 
+                               class="w-full p-2.5 rounded-sm transition-all" 
+                               placeholder="0123456789">
+                    </div>
+
+                    <!-- Input Email -->
+                    <div>
+                        <label for="email" class="block text-sm mb-1 uppercase tracking-wider">
+                            > EMEL RASMI (SALINAN PDF AKAN DIHANTAR KE SINI) <span class="text-red-500">*</span>
+                        </label>
+                        <input type="email" id="email" required 
+                               class="w-full p-2.5 rounded-sm transition-all" 
+                               placeholder="ahmad@example.com">
+                    </div>
+                </div>
+
+                <div class="border-b border-green-800 pb-2 pt-2">
+                    <h2 class="text-lg font-bold glow-text flex items-center">
+                        <span class="mr-2">[2]</span> BUTIRAN ADUAN
+                    </h2>
+                </div>
+
+                <!-- Dropdown Jenis Aduan -->
+                <div>
+                    <label for="jenisAduan" class="block text-sm mb-1 uppercase tracking-wider">
+                        > JENIS ADUAN / KATEGORI <span class="text-red-500">*</span>
+                    </label>
+                    <select id="jenisAduan" required class="w-full p-2.5 rounded-sm transition-all cursor-pointer">
+                        <option value="" disabled selected>-- SILA PILIH KATEGORI --</option>
+                        <option value="Kerosakan Fasiliti / Infrastruktur">1. KEROSAKAN FASILITI / INFRASTRUKTUR</option>
+                        <option value="Perkhidmatan Pelanggan / Kaunter">2. PERKHIDMATAN PELANGGAN / KAUNTER</option>
+                        <option value="Isu Keselamatan / Kebersihan">3. ISU KESELAMATAN / KEBERSIHAN</option>
+                        <option value="Sistem / Aplikasi / IT">4. MASALAH SISTEM / APLIKASI / IT</option>
+                        <option value="Lain-lain Aduan">5. LAIN-LAIN ADUAN</option>
+                    </select>
+                </div>
+
+                <!-- Deskripsi Aduan -->
+                <div>
+                    <label for="deskripsi" class="block text-sm mb-1 uppercase tracking-wider">
+                        > DESKRIPSI ADUAN TERPERINCI <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="deskripsi" rows="4" required 
+                              class="w-full p-2.5 rounded-sm transition-all" 
+                              placeholder="Nyatakan butiran aduan, lokasi, tarikh kejadian dan kronologi secara jelas..."></textarea>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="pt-4 flex flex-col md:flex-row gap-4">
+                    <button type="submit" 
+                            class="flex-1 bg-green-900 hover:bg-green-700 text-green-100 font-bold py-3 px-6 rounded-sm border border-green-400 transition-all duration-200 tracking-wider flex justify-center items-center gap-2 shadow-lg hover:shadow-green-500/50">
+                        <span>[ F8 ] PRA-TAMPILAN ADUAN (PREVIEW)</span>
+                    </button>
+                    <button type="button" onclick="resetForm()" 
+                            class="bg-black hover:bg-red-950 text-red-400 hover:text-red-200 font-bold py-3 px-6 rounded-sm border border-red-600 transition-all duration-200 tracking-wider">
+                        RESET
+                    </button>
+                </div>
+            </form>
+        </main>
+    </div>
+
+    <!-- MODAL PREVIEW (OVERLAY RETRO) -->
+    <div id="previewModal" class="fixed inset-0 bg-black bg-opacity-95 z-40 hidden flex items-center justify-center p-4">
+        <div class="max-w-2xl w-full border-2 border-green-400 bg-black p-6 glow-border rounded-sm relative max-h-[90vh] overflow-y-auto">
+            
+            <div class="flex justify-between items-center border-b border-green-500 pb-2 mb-4">
+                <h3 class="text-xl font-bold glow-text flex items-center">
+                    <span class="inline-block w-2 h-4 bg-green-500 mr-2 animate-pulse"></span>
+                    DISAHKAN: SEMAKAN PREVIEW TIKET
+                </h3>
+                <span class="text-xs bg-green-900 text-green-300 px-2 py-1 border border-green-500">STATUS: DRAFT</span>
+            </div>
+
+            <p class="text-xs text-green-400 mb-4">Sila pastikan maklumat di bawah adalah tepat sebelum membuat pengesahan hantaran ke pangkalan data dan emel.</p>
+
+            <!-- Preview Data Display -->
+            <div class="space-y-3 text-sm border border-green-800 p-4 bg-green-950 bg-opacity-20 mb-6 font-mono">
+                <div class="grid grid-cols-3 border-b border-green-900 pb-1">
+                    <span class="text-green-600">NAMA PENGADU:</span>
+                    <span id="prevNama" class="col-span-2 font-bold text-green-300"></span>
+                </div>
+                <div class="grid grid-cols-3 border-b border-green-900 pb-1">
+                    <span class="text-green-600">NO TELEFON:</span>
+                    <span id="prevNoTel" class="col-span-2 font-bold text-green-300"></span>
+                </div>
+                <div class="grid grid-cols-3 border-b border-green-900 pb-1">
+                    <span class="text-green-600">EMEL PENGADU:</span>
+                    <span id="prevEmail" class="col-span-2 font-bold text-green-300"></span>
+                </div>
+                <div class="grid grid-cols-3 border-b border-green-900 pb-1">
+                    <span class="text-green-600">JENIS ADUAN:</span>
+                    <span id="prevJenis" class="col-span-2 font-bold text-green-300"></span>
+                </div>
+                <div class="flex flex-col pt-1">
+                    <span class="text-green-600 mb-1">DESKRIPSI ADUAN:</span>
+                    <div id="prevDeskripsi" class="p-2 border border-green-900 bg-black text-green-200 whitespace-pre-wrap rounded-sm min-h-[80px]"></div>
+                </div>
+            </div>
+
+            <div class="p-3 mb-4 bg-green-950 border border-green-700 text-xs text-green-300 flex items-center gap-2">
+                <span>📧</span>
+                <span>Nota: Salinan PDF tiket aduan rasmi ini akan dihantar secara automatik ke emel di atas selepas anda menekan <strong>CONFIRM & SUBMIT</strong>.</span>
+            </div>
+
+            <!-- Modal Action Buttons -->
+            <div class="flex flex-col md:flex-row gap-3">
+                <button type="button" id="btnConfirmSubmit" onclick="submitFinalAduan()" 
+                        class="flex-1 bg-green-500 hover:bg-green-400 text-black font-bold py-3 px-4 rounded-sm transition-all duration-200 tracking-wider flex justify-center items-center gap-2">
+                    <span>[ ENTER ] CONFIRM & SUBMIT</span>
+                </button>
+                <button type="button" id="btnEdit" onclick="closePreview()" 
+                        class="bg-gray-900 hover:bg-gray-800 text-green-400 font-bold py-3 px-4 rounded-sm border border-green-600 transition-all duration-200">
+                    [ ESC ] EDIT MAKLUMAT
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SUCCESS RESULT -->
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-95 z-50 hidden flex items-center justify-center p-4">
+        <div class="max-w-md w-full border-2 border-green-400 bg-black p-6 glow-border text-center rounded-sm">
+            <div class="text-4xl mb-3 text-green-400">████████ 100%</div>
+            <h3 class="text-xl font-bold glow-text mb-2">ADUAN BERHASIL DIHANTAR!</h3>
+            <p class="text-xs text-green-300 mb-4">Tiket aduan anda telah didaftarkan ke dalam sistem terminal.</p>
+            
+            <div class="border border-dashed border-green-500 p-3 mb-4 bg-green-950 bg-opacity-30">
+                <p class="text-xs text-green-400">NO. TIKET ADUAN:</p>
+                <p id="ticketNumber" class="text-xl font-bold text-green-200 tracking-widest my-1"></p>
+                <p class="text-[10px] text-green-500">Sila simpan no. tiket ini untuk rujukan lanjut.</p>
+            </div>
+
+            <div class="p-3 mb-6 bg-black border border-green-600 rounded-sm text-left text-xs text-green-300">
+                <p class="font-bold mb-1 text-green-400 flex items-center gap-1">
+                    <span>📨</span> SALINAN PDF DIHANTAR
+                </p>
+                <p>Salinan PDF rekod aduan rasmi telah dihantar ke emel: <strong id="sentEmailAddress" class="text-green-200"></strong>. Sila semak peti masuk (*inbox*) atau folder *spam* anda.</p>
+            </div>
+
+            <button type="button" onclick="finishProcess()" 
+                    class="w-full bg-green-600 hover:bg-green-500 text-black font-bold py-2.5 px-4 rounded-sm transition-all">
+                SELESAI / ADUAN BAHARU
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer Terminal -->
+    <footer class="max-w-4xl mx-auto w-full text-center mt-6 text-xs text-green-600 border-t border-green-900 pt-3">
+        <p>SYSTEM STATUS: ONLINE | SECURE 256-BIT ENCRYPTION | TERMINAL ID: TERMINAL-KL-8842</p>
+    </footer>
+
+    <!-- MODAL AUTHENTICATION ADMIN -->
+    <div id="adminAuthModal" class="fixed inset-0 bg-black bg-opacity-95 z-50 hidden flex items-center justify-center p-4">
+        <div class="max-w-md w-full border-2 border-green-500 bg-black p-6 glow-border rounded-sm">
+            <div class="flex justify-between items-center border-b border-green-600 pb-2 mb-4">
+                <h3 class="text-lg font-bold glow-text text-green-400">🔒 AKSES PENTADBIR (ADMIN)</h3>
+                <button type="button" onclick="closeAdminAuthModal()" class="text-green-500 hover:text-red-400 font-bold">[X]</button>
+            </div>
+            <p class="text-xs text-green-400 mb-4">> SILA MASUKKAN KATA LALUAL PENTADBIR UNTUK MEMBUKA PANEL REVIU ADUAN.</p>
+            
+            <form onsubmit="event.preventDefault(); verifyAdminPassword();" class="space-y-4">
+                <div>
+                    <label for="adminPass" class="block text-xs mb-1 uppercase tracking-wider text-green-300">
+                        > KATA LALUAN / PASSCODE:
+                    </label>
+                    <input type="password" id="adminPass" required 
+                           class="w-full p-2 text-sm rounded-sm bg-black border border-green-500 text-green-300"
+                           placeholder="••••••••">
+                    <p id="adminAuthErr" class="text-red-500 text-xs mt-1 hidden">> KATA LALUAN SALAH! AKSES DITOLAK.</p>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeAdminAuthModal()" class="bg-gray-900 text-gray-400 text-xs px-4 py-2 border border-gray-700 hover:bg-gray-800">BATAL</button>
+                    <button type="submit" class="bg-green-700 hover:bg-green-600 text-black font-bold text-xs px-5 py-2 border border-green-400">LOG MASUK</button>
+                </div>
+            </form>
+            <p class="text-[10px] text-green-600 mt-3 text-center">* Kata laluan lalai: <strong>ADMIN123</strong></p>
+        </div>
+    </div>
+
+    <!-- MODAL PANEL REVIEW ADUAN (ADMIN DASHBOARD) -->
+    <div id="adminPanelModal" class="fixed inset-0 bg-black bg-opacity-95 z-50 hidden flex items-center justify-center p-4">
+        <div class="max-w-5xl w-full border-2 border-green-400 bg-black p-6 glow-border rounded-sm relative max-h-[90vh] flex flex-col">
+            
+            <!-- Admin Header -->
+            <div class="flex justify-between items-center border-b border-green-500 pb-3 mb-4">
+                <div>
+                    <h3 class="text-xl font-bold glow-text text-green-400 flex items-center gap-2">
+                        <span>[⚙️ ADMIN PANEL]</span> REVIU & LOG ADUAN
+                    </h3>
+                    <p class="text-xs text-green-500">Sistem Semakan & Modifikasi Status Tiket Aduan Masuk</p>
+                </div>
+                <button type="button" onclick="closeAdminPanel()" class="bg-red-950 hover:bg-red-800 text-red-300 border border-red-600 text-xs px-3 py-1 font-bold">
+                    [ ESC ] LOG KELUAR
+                </button>
+            </div>
+
+            <!-- Filter & Action Controls -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-3 mb-4 bg-green-950 bg-opacity-20 p-2.5 border border-green-800">
+                <div class="text-xs text-green-300 flex items-center gap-2 w-full sm:w-auto">
+                    <span>CARI:</span>
+                    <input type="text" id="adminSearchInput" onkeyup="filterAdminTable()" placeholder="Cari Tiket / Nama..." class="p-1 px-2 text-xs bg-black text-green-300 border border-green-600 rounded-sm w-full sm:w-48">
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="text-green-400">JUMLAH TIKET: <strong id="totalTicketCount" class="text-green-200">0</strong></span>
+                    <button onclick="fetchLiveSheetData()" class="bg-green-900 hover:bg-green-700 text-green-200 px-3 py-1 border border-green-500 rounded-sm flex items-center gap-1">
+                        <span>🔄</span> MUAT DATA LIVE
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="flex-1 overflow-auto border border-green-800 bg-black">
+                <table class="w-full text-left text-xs font-mono text-green-300">
+                    <thead class="bg-green-950 text-green-400 sticky top-0 border-b border-green-700">
+                        <tr>
+                            <th class="p-2 border-r border-green-800">TARIKH/TIKET</th>
+                            <th class="p-2 border-r border-green-800">PENGADU</th>
+                            <th class="p-2 border-r border-green-800">KATEGORI</th>
+                            <th class="p-2 border-r border-green-800">DESKRIPSI</th>
+                            <th class="p-2 border-r border-green-800">STATUS</th>
+                            <th class="p-2 text-center">TINDAKAN</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminTableBody" class="divide-y divide-green-900">
+                        <!-- Dynamic Records -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer Modal -->
+            <div class="mt-4 pt-2 border-t border-green-900 flex justify-between text-[11px] text-green-600">
+                <span>SEKSYEN KAWALAN PENTADBIRAN TERMINAL</span>
+                <span id="dataSyncStatus">STATUS SAMBUNGAN: READY (CSV LIVE)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Engine -->
+    <script>
+        // Web Audio API Synth Sound Effects
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playBeep(freq = 440, type = 'sine', duration = 0.08) {
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                // Ignore audio errors if blocked by browser policy
+            }
+        }
+
+        // Add keyboard sound to inputs
+        document.querySelectorAll('input, select, textarea').forEach(element => {
+            element.addEventListener('keydown', () => playBeep(600, 'square', 0.03));
+        });
+
+        // Live Clock Function
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('live-clock').innerText = `STATION: MY-KL-01 | TIME: ${hours}:${minutes}:${seconds}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Show Preview Modal
+        function showPreview() {
+            playBeep(800, 'triangle', 0.1);
+            
+            // Populate data into preview
+            document.getElementById('prevNama').innerText = document.getElementById('nama').value.toUpperCase();
+            document.getElementById('prevNoTel').innerText = document.getElementById('noTel').value;
+            document.getElementById('prevEmail').innerText = document.getElementById('email').value;
+            document.getElementById('prevJenis').innerText = document.getElementById('jenisAduan').value;
+            document.getElementById('prevDeskripsi').innerText = document.getElementById('deskripsi').value;
+
+            // Display modal
+            document.getElementById('previewModal').classList.remove('hidden');
+        }
+
+        // Close Preview Modal
+        function closePreview() {
+            playBeep(300, 'sawtooth', 0.08);
+            document.getElementById('previewModal').classList.add('hidden');
+        }
+
+        // Reset Form
+        function resetForm() {
+            playBeep(250, 'sawtooth', 0.15);
+            document.getElementById('aduanForm').reset();
+        }
+
+        // Final Submit Process with Google Apps Script Integration & Email PDF Generation
+        async function submitFinalAduan() {
+            playBeep(1000, 'square', 0.15);
+
+            const submitBtn = document.getElementById('btnConfirmSubmit');
+            const editBtn = document.getElementById('btnEdit');
+            const originalBtnText = submitBtn.innerHTML;
+
+            // Show loading state
+            submitBtn.disabled = true;
+            editBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="animate-pulse">[ PROCESSING ] JANA PDF & HANTAR EMEL...</span>';
+
+            // Generate Random Ticket ID
+            const randomID = 'TKT-' + Math.floor(100000 + Math.random() * 900000);
+            const userEmail = document.getElementById('email').value;
+
+            // Prepare payload
+            const payload = {
+                ticketId: randomID,
+                nama: document.getElementById('nama').value.toUpperCase(),
+                noTel: document.getElementById('noTel').value,
+                email: userEmail,
+                jenisAduan: document.getElementById('jenisAduan').value,
+                deskripsi: document.getElementById('deskripsi').value
+            };
+
+            const appscriptUrl = document.getElementById('appscriptUrl').value.trim();
+
+            if (appscriptUrl) {
+                try {
+                    // Send data to Google Apps Script Web App
+                    await fetch(appscriptUrl, {
+                        method: 'POST',
+                        mode: 'no-cors', // standard mode for Apps Script web apps cross-origin submission
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                } catch (error) {
+                    console.error('Penyambungan ke Apps Script gagal:', error);
+                }
+            }
+
+            // Re-enable buttons
+            submitBtn.disabled = false;
+            editBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+
+            // Hide Preview Modal
+            document.getElementById('previewModal').classList.add('hidden');
+
+            // Display Info on Success Modal
+            document.getElementById('ticketNumber').innerText = randomID;
+            document.getElementById('sentEmailAddress').innerText = userEmail;
+
+            // Show Success Modal
+            document.getElementById('successModal').classList.remove('hidden');
+        }
+
+        // Complete & Refresh
+        function finishProcess() {
+            playBeep(500, 'sine', 0.1);
+            document.getElementById('successModal').classList.add('hidden');
+            document.getElementById('aduanForm').reset();
+        }
+
+        // ESC key listener to close modal
+        window.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const preview = document.getElementById('previewModal');
+                if (!preview.classList.contains('hidden')) {
+                    closePreview();
+                }
+                const adminPanel = document.getElementById('adminPanelModal');
+                if (!adminPanel.classList.contains('hidden')) {
+                    closeAdminPanel();
+                }
+            }
+        });
+
+        // ==================== ADMIN PANEL LOGIC ====================
+        const ADMIN_PASSWORD = "ADMIN123";
+        let liveDataStore = []; // Memori simpanan data secara live dari CSV Google Sheets
+
+        // Helper untuk parse CSV bertanda koma/petik dengan betul
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"' && line[i + 1] === '"') {
+                    current += '"';
+                    i++;
+                } else if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        }
+
+        // Fungsi mengambil data secara langsung daripada Pautan CSV Google Sheets
+        async function fetchLiveSheetData() {
+            const csvUrl = document.getElementById('csvDataUrl').value;
+            const statusLabel = document.getElementById('dataSyncStatus');
+            const tbody = document.getElementById('adminTableBody');
+
+            if (statusLabel) statusLabel.innerText = "STATUS SAMBUNGAN: MEMUAT TURUN DATA LIVE...";
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center p-6 text-green-400 animate-pulse">
+                        > MEMBACA DATA DARI GOOGLE SHEETS CSV... SILA TUNGGU...
+                    </td>
+                </tr>
+            `;
+
+            try {
+                // Tambah timestamp parameter bagi melepasi cache browser
+                const cacheBusterUrl = csvUrl + '&t=' + new Date().getTime();
+                const response = await fetch(cacheBusterUrl);
+                const csvText = await response.text();
+
+                const lines = csvText.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                
+                if (lines.length <= 1) {
+                    liveDataStore = [];
+                } else {
+                    // Abaikan baris header (index 0)
+                    liveDataStore = lines.slice(1).map(line => {
+                        const row = parseCSVLine(line);
+                        return {
+                            timestamp: row[0] || "",
+                            ticketId: row[1] || "",
+                            nama: row[2] || "",
+                            noTel: row[3] ? row[3].replace(/^'/, '') : "",
+                            email: row[4] || "",
+                            jenisAduan: row[5] || "",
+                            deskripsi: row[6] || "",
+                            status: row[7] || "BARU"
+                        };
+                    }).reverse(); // Susun dari yang terkini di atas
+                }
+
+                if (statusLabel) statusLabel.innerText = "STATUS SAMBUNGAN: LIVE CSV CONNECTED (" + liveDataStore.length + " REKOD)";
+                renderAdminTable(liveDataStore);
+
+            } catch (err) {
+                console.error("Gagal mengambil data CSV:", err);
+                if (statusLabel) statusLabel.innerText = "STATUS SAMBUNGAN: RALAT MUAT TURUN DATA";
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center p-6 text-red-400">
+                            > RALAT MEMBACA DATA DARI PAUTAN CSV GOOGLE SHEETS.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function openAdminAuthModal() {
+            playBeep(700, 'square', 0.1);
+            document.getElementById('adminAuthErr').classList.add('hidden');
+            document.getElementById('adminPass').value = '';
+            document.getElementById('adminAuthModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('adminPass').focus(), 100);
+        }
+
+        function closeAdminAuthModal() {
+            playBeep(300, 'sawtooth', 0.08);
+            document.getElementById('adminAuthModal').classList.add('hidden');
+        }
+
+        function verifyAdminPassword() {
+            const inputPass = document.getElementById('adminPass').value;
+            if (inputPass === ADMIN_PASSWORD) {
+                playBeep(1200, 'sine', 0.15);
+                closeAdminAuthModal();
+                openAdminPanel();
+            } else {
+                playBeep(150, 'sawtooth', 0.3);
+                document.getElementById('adminAuthErr').classList.remove('hidden');
+            }
+        }
+
+        function openAdminPanel() {
+            document.getElementById('adminPanelModal').classList.remove('hidden');
+            fetchLiveSheetData(); // Auto fetch dari CSV sebaik sahaja panel dibakar
+        }
+
+        function closeAdminPanel() {
+            playBeep(300, 'sawtooth', 0.08);
+            document.getElementById('adminPanelModal').classList.add('hidden');
+        }
+
+        function renderAdminTable(dataToRender = liveDataStore) {
+            const tbody = document.getElementById('adminTableBody');
+            document.getElementById('totalTicketCount').innerText = dataToRender.length;
+
+            if (dataToRender.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center p-6 text-green-600">
+                            > TIADA REKOD ADUAN DITEMUI DALAM GOOGLE SHEET.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = dataToRender.map((item) => {
+                let statusColor = "text-yellow-400 border-yellow-600 bg-yellow-950";
+                if (item.status === 'SELESAI') statusColor = "text-green-400 border-green-600 bg-green-950";
+                if (item.status === 'DALAM PROSES') statusColor = "text-blue-400 border-blue-600 bg-blue-950";
+                if (item.status === 'DITOLAK') statusColor = "text-red-400 border-red-600 bg-red-950";
+
+                return `
+                    <tr class="hover:bg-green-950 hover:bg-opacity-40 transition-colors">
+                        <td class="p-2 border-r border-green-900">
+                            <div class="font-bold text-green-200">${item.ticketId}</div>
+                            <div class="text-[10px] text-green-600">${item.timestamp}</div>
+                        </td>
+                        <td class="p-2 border-r border-green-900">
+                            <div class="font-bold text-green-300">${item.nama}</div>
+                            <div class="text-[10px] text-green-500">${item.noTel} | ${item.email}</div>
+                        </td>
+                        <td class="p-2 border-r border-green-900 text-green-400">${item.jenisAduan}</td>
+                        <td class="p-2 border-r border-green-900 max-w-xs truncate" title="${item.deskripsi}">
+                            ${item.deskripsi}
+                        </td>
+                        <td class="p-2 border-r border-green-900">
+                            <span class="px-2 py-0.5 border text-[10px] font-bold ${statusColor}">
+                                ${item.status}
+                            </span>
+                        </td>
+                        <td class="p-2 text-center">
+                            <select onchange="updateTicketStatus('${item.ticketId}', this.value)" class="text-[11px] p-1 bg-black border border-green-600 text-green-300 cursor-pointer">
+                                <option value="BARU" ${item.status === 'BARU' ? 'selected' : ''}>BARU</option>
+                                <option value="DALAM PROSES" ${item.status === 'DALAM PROSES' ? 'selected' : ''}>PROSES</option>
+                                <option value="SELESAI" ${item.status === 'SELESAI' ? 'selected' : ''}>SELESAI</option>
+                                <option value="DITOLAK" ${item.status === 'DITOLAK' ? 'selected' : ''}>TOLAK</option>
+                            </select>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function updateTicketStatus(ticketId, newStatus) {
+            playBeep(900, 'sine', 0.08);
+
+            // Kemaskini data paparan secara serta-merta
+            const target = liveDataStore.find(t => t.ticketId === ticketId);
+            if (target) {
+                target.status = newStatus;
+                renderAdminTable(liveDataStore);
+            }
+
+            // Hantar permintaan kemaskini status ke Apps Script Web App
+            const appscriptUrl = document.getElementById('appscriptUrl').value.trim();
+            if (appscriptUrl) {
+                try {
+                    await fetch(appscriptUrl, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'updateStatus',
+                            ticketId: ticketId,
+                            newStatus: newStatus
+                        })
+                    });
+                } catch (e) {
+                    console.error("Gagal mengemaskini status:", e);
+                }
+            }
+        }
+
+        function filterAdminTable() {
+            const query = document.getElementById('adminSearchInput').value.toLowerCase();
+            const filtered = liveDataStore.filter(item => 
+                item.ticketId.toLowerCase().includes(query) ||
+                item.nama.toLowerCase().includes(query) ||
+                item.jenisAduan.toLowerCase().includes(query) ||
+                item.deskripsi.toLowerCase().includes(query)
+            );
+            renderAdminTable(filtered);
+        }
+    </script>
+</body>
+</html>
